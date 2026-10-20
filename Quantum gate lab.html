@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quantum gate lab</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#e9eef5;--panel:#fff;--ink:#16223b;--mute:#5d6b86;--line:#c9d3e3;--wire:#16223b;--bar:#2f6fed;--bar2:#dbe6fb;
+--g-x:#e8563f;--g-y:#c2409b;--g-z:#7a4fe0;--g-h:#16a394;--g-s:#d9962b;--g-t:#8a7a1f;--g-c:#16223b;--chipfg:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1626;--panel:#18223a;--ink:#e6ecf8;--mute:#8d9bb8;--line:#2c3a5a;--wire:#8d9bb8;--bar:#6c9bff;--bar2:#26365c;--g-c:#e6ecf8;--chipfg:#0f1626}}
+:root[data-theme="dark"]{--bg:#0f1626;--panel:#18223a;--ink:#e6ecf8;--mute:#8d9bb8;--line:#2c3a5a;--wire:#8d9bb8;--bar:#6c9bff;--bar2:#26365c;--g-c:#e6ecf8;--chipfg:#0f1626}
+*,*:before,*:after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:500 16px/1.5 "Bricolage Grotesque",system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:28px;margin:0 0 2px;letter-spacing:-.02em}
+.sub{color:var(--mute);margin:0 0 18px}
+.grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+h2{font-size:15px;margin:0 0 10px;color:var(--mute);font-weight:500}
+.pal{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.pal button,.act button{font:inherit;cursor:pointer;border:1.5px solid var(--line);background:transparent;color:var(--ink);border-radius:9px;padding:6px 12px}
+.pal button.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--ink) inset}
+.pal button[data-g]{min-width:44px;font-weight:700}
+.act{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.act button:hover,.pal button:hover{border-color:var(--ink)}
+button:focus-visible{outline:3px solid var(--bar);outline-offset:2px}
+.ckt{overflow-x:auto}
+.row{display:grid;grid-template-columns:62px repeat(var(--cols,6),minmax(44px,1fr));min-width:min-content}
+.qlab{align-self:center;font:500 14px "IBM Plex Mono",monospace;color:var(--mute)}
+.slot{position:relative;height:56px;border:0;padding:0;background:linear-gradient(var(--wire),var(--wire)) center/100% 2px no-repeat;cursor:pointer;color:inherit}
+.slot:hover .ph{opacity:.35}
+.slot:focus-visible{outline:3px solid var(--bar);outline-offset:-3px;border-radius:8px}
+.ph{position:absolute;inset:8px 6px;border:1.5px dashed var(--mute);border-radius:8px;opacity:0;transition:opacity .12s}
+.chip{position:absolute;inset:8px 6px;border-radius:8px;display:grid;place-items:center;font-weight:700;color:var(--chipfg);z-index:2}
+.dot{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px;border-radius:50%;background:var(--g-c);z-index:2}
+.tgt{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px;border-radius:50%;background:var(--panel);border:2.5px solid var(--g-c);z-index:2}
+.tgt:before,.tgt:after{content:"";position:absolute;background:var(--g-c);left:50%;top:50%}
+.tgt:before{width:2.5px;height:30px;margin:-15px 0 0 -1.25px}.tgt:after{height:2.5px;width:30px;margin:-1.25px 0 0 -15px}
+.dn:after,.up:before{content:"";position:absolute;left:50%;width:2.5px;margin-left:-1.25px;background:var(--g-c);z-index:1}
+.dn:after{top:50%;bottom:0}.up:before{top:0;bottom:50%}
+.st{display:grid;grid-template-columns:var(--lw,34px) 1fr 78px;gap:8px;align-items:center;margin:6px 0;font:400 13px "IBM Plex Mono",monospace}
+.bar{height:20px;border-radius:5px;background:var(--bar2);position:relative;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--bar);transition:width .25s}
+.bar b{position:absolute;left:6px;top:0;line-height:20px;font-size:12px;font-weight:500;color:var(--ink);mix-blend-mode:normal}
+.amp{color:var(--mute);text-align:right;font-size:12px}
+.ph8{display:inline-block;width:12px;height:12px;border:1.5px solid var(--mute);border-radius:50%;position:relative;vertical-align:-2px;margin-right:4px}
+.ph8 u{position:absolute;left:50%;top:50%;width:5px;height:1.5px;background:var(--ink);transform-origin:0 50%}
+.bl{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-around}
+.ctl{display:flex;flex-wrap:wrap;gap:18px;margin-bottom:14px;align-items:center;font-size:14px;color:var(--mute)}
+.step{display:inline-flex;align-items:center;gap:6px}
+.step button{width:32px;height:32px;font:inherit;font-size:18px;line-height:1;cursor:pointer;border:1.5px solid var(--line);background:transparent;color:var(--ink);border-radius:9px;padding:0}
+.step button:hover:not(:disabled){border-color:var(--ink)}
+.step button:disabled{opacity:.35;cursor:default}
+.step b{min-width:18px;text-align:center;color:var(--ink);font:500 15px "IBM Plex Mono",monospace}
+.pend .dot{background:var(--panel);border:3px solid var(--g-c)}
+.bl figure{margin:0;text-align:center;font-size:13px;color:var(--mute)}
+canvas{width:130px;height:130px;display:block}
+.shots{font:400 13px "IBM Plex Mono",monospace;color:var(--mute);min-height:20px}
+.note{font-size:14px;color:var(--mute);margin:10px 0 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>Quantum gate lab</h1>
+  <p class="sub">Pick a gate, click a wire to place it. Click a placed gate to replace or remove it. Gates run left to right on qubits that all start in |0⟩.</p>
+  <div class="grid">
+    <section class="card">
+      <h2>Circuit</h2>
+      <div class="ctl"><span class="step">Qubits <button id="qm" aria-label="Remove a qubit">−</button><b id="qv"></b><button id="qp" aria-label="Add a qubit">+</button></span><span class="step">Steps <button id="sm" aria-label="Remove a step">−</button><b id="sv"></b><button id="sp" aria-label="Add a step">+</button></span></div>
+      <div class="pal" id="pal"></div>
+      <div class="ckt"><div id="ckt"></div></div>
+      <div class="act">
+        <button id="bell">Bell pair</button>
+        <button id="sup">Superposition</button>
+        <button id="hh">H then H</button>
+        <button id="clear">Clear</button>
+        <button id="meas">Measure 100×</button>
+      </div>
+      <p class="shots" id="shots" aria-live="polite"></p>
+      <p class="note" id="note"></p>
+    </section>
+    <section>
+      <div class="card" style="margin-bottom:16px">
+        <h2>Probabilities and amplitudes</h2>
+        <div id="states"></div>
+      </div>
+      <div class="card">
+        <h2>Bloch spheres</h2>
+        <div class="bl" id="bl"></div>
+        <p class="note">A vector that stops short of the surface means that qubit is entangled.</p>
+      </div>
+    </section>
+  </div>
+</main>
+<script>
+const S = Math.SQRT1_2;
+// Gates as [m00, m01, m10, m11], each entry [re, im]
+const G = {
+  X:[[0,0],[1,0],[1,0],[0,0]],
+  Y:[[0,0],[0,-1],[0,1],[0,0]],
+  Z:[[1,0],[0,0],[0,0],[-1,0]],
+  H:[[S,0],[S,0],[S,0],[-S,0]],
+  S:[[1,0],[0,0],[0,0],[0,1]],
+  T:[[1,0],[0,0],[0,0],[S,S]]
+};
+const COLOR = {X:'--g-x',Y:'--g-y',Z:'--g-z',H:'--g-h',S:'--g-s',T:'--g-t'};
+const $ = id => document.getElementById(id);
+let n = 2, cols = 6, sel = 'H', pend = null, circuit = [];
+const mkCol = () => ({g:Array(n).fill(null), cx:null});
+const reset = () => { circuit = Array.from({length:cols}, mkCol); pend = null; };
+const bit = (i,q) => (i >> (n-1-q)) & 1;     // q0 is the leftmost bit of the label
+const mask = q => 1 << (n-1-q);
+const mul = (x,y) => [x[0]*y[0]-x[1]*y[1], x[0]*y[1]+x[1]*y[0]];
+
+function setN(k){
+  n = k; pend = null;
+  circuit.forEach(c => {
+    c.g = Array.from({length:n}, (_,q) => c.g[q] || null);
+    if (c.cx && (c.cx.c >= n || c.cx.t >= n)) c.cx = null;
+  });
+}
+function setCols(k){
+  pend = null;
+  if (k > cols) for (let i=cols;i<k;i++) circuit.push(mkCol()); else circuit.length = k;
+  cols = k;
+}
+
+function simulate(){
+  const dim = 1 << n, re = Array(dim).fill(0), im = Array(dim).fill(0); re[0] = 1;
+  for (const col of circuit){
+    if (col.cx){
+      const {c,t} = col.cx;
+      for (let i=0;i<dim;i++){
+        if (bit(i,c) === 1 && bit(i,t) === 0){
+          const j = i | mask(t);
+          [re[i],re[j]] = [re[j],re[i]]; [im[i],im[j]] = [im[j],im[i]];
+        }
+      }
+    }
+    col.g.forEach((g,q) => {
+      if (!g) return;
+      const m = G[g], mk = mask(q);
+      for (let i=0;i<dim;i++){
+        if (i & mk) continue;
+        const j = i | mk, a = [re[i],im[i]], b = [re[j],im[j]];
+        const n0 = [mul(m[0],a)[0]+mul(m[1],b)[0], mul(m[0],a)[1]+mul(m[1],b)[1]];
+        const n1 = [mul(m[2],a)[0]+mul(m[3],b)[0], mul(m[2],a)[1]+mul(m[3],b)[1]];
+        re[i]=n0[0]; im[i]=n0[1]; re[j]=n1[0]; im[j]=n1[1];
+      }
+    });
+  }
+  return {re, im};
+}
+
+function bloch(st, q){
+  let r00=0, r11=0, cr=0, ci=0;
+  for (let i=0;i<st.re.length;i++){
+    const p = st.re[i]**2 + st.im[i]**2;
+    if (bit(i,q)===0){
+      r00 += p;
+      const j = i | mask(q);          // a0 * conj(a1)
+      cr += st.re[i]*st.re[j] + st.im[i]*st.im[j];
+      ci += st.im[i]*st.re[j] - st.re[i]*st.im[j];
+    } else r11 += p;
+  }
+  return {x:2*cr, y:-2*ci, z:r00-r11};
+}
+
+function drawBloch(cv, v){
+  const g = cv.getContext('2d'), W = cv.width, R = W*0.38, cx = W/2, cy = W/2, a = 0.6, t = 0.4;
+  const css = getComputedStyle(document.documentElement);
+  const line = css.getPropertyValue('--line').trim(), ink = css.getPropertyValue('--ink').trim(), acc = css.getPropertyValue('--bar').trim();
+  const P = (x,y,z) => {
+    const xr = x*Math.cos(a) - y*Math.sin(a), yr = x*Math.sin(a) + y*Math.cos(a);
+    return [cx + R*xr, cy - R*(z*Math.cos(t) - yr*Math.sin(t))];
+  };
+  g.clearRect(0,0,W,W);
+  g.lineWidth = 2; g.strokeStyle = line;
+  g.beginPath(); g.arc(cx,cy,R,0,7); g.stroke();
+  g.beginPath();
+  for (let k=0;k<=64;k++){ const p=P(Math.cos(k/64*6.2832),Math.sin(k/64*6.2832),0); k?g.lineTo(...p):g.moveTo(...p); }
+  g.stroke();
+  g.beginPath(); g.moveTo(...P(0,0,1)); g.lineTo(...P(0,0,-1)); g.stroke();
+  g.fillStyle = ink; g.font = '600 22px "IBM Plex Mono",monospace'; g.textAlign = 'center';
+  g.fillText('|0⟩', cx, cy-R-8); g.fillText('|1⟩', cx, cy+R+22);
+  const tip = P(v.x,v.y,v.z);
+  g.strokeStyle = acc; g.lineWidth = 4; g.beginPath(); g.moveTo(cx,cy); g.lineTo(...tip); g.stroke();
+  g.fillStyle = acc; g.beginPath(); g.arc(tip[0],tip[1],7,0,7); g.fill();
+}
+
+const f = x => { const s = (Math.abs(x)<5e-4?0:x).toFixed(3).replace(/\.?0+$/,''); return s===''||s==='-0'?'0':s; };
+function fmt(r,i){
+  if (Math.abs(i)<5e-4) return f(r);
+  if (Math.abs(r)<5e-4) return f(i)+'i';
+  return f(r) + (i<0?'−':'+') + f(Math.abs(i)) + 'i';
+}
+
+function render(){
+  // steppers
+  $('qv').textContent = n; $('sv').textContent = cols;
+  $('qm').disabled = n <= 1; $('qp').disabled = n >= 4;
+  $('sm').disabled = cols <= 3; $('sp').disabled = cols >= 10;
+  // circuit
+  const ck = $('ckt'); ck.innerHTML = ''; ck.style.setProperty('--cols', cols);
+  for (let q=0;q<n;q++){
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<div class="qlab">q${q} |0⟩</div>`;
+    circuit.forEach((col,c) => {
+      const b = document.createElement('button'); b.className = 'slot';
+      b.setAttribute('aria-label', `Wire q${q}, step ${c+1}`);
+      let inner = '<span class="ph"></span>';
+      const g = col.g[q];
+      if (g) inner = `<span class="chip" style="background:var(${COLOR[g]})">${g}</span>`;
+      if (col.cx){
+        const lo = Math.min(col.cx.c,col.cx.t), hi = Math.max(col.cx.c,col.cx.t);
+        inner = col.cx.c===q ? '<span class="dot"></span>' : col.cx.t===q ? '<span class="tgt"></span>' : '';
+        if (q > lo && q <= hi) b.classList.add('up');
+        if (q >= lo && q < hi) b.classList.add('dn');
+      }
+      if (pend && pend.c===c && pend.q===q){ inner = '<span class="dot"></span>'; b.classList.add('pend'); }
+      b.innerHTML = inner;
+      b.onclick = () => place(c,q);
+      row.appendChild(b);
+    });
+    ck.appendChild(row);
+  }
+  // state readout
+  const st = simulate(), dim = 1 << n, box = $('states'); box.innerHTML = '';
+  box.style.setProperty('--lw', (n*9+22)+'px');
+  for (let i=0;i<dim;i++){
+    const p = st.re[i]**2 + st.im[i]**2, ph = Math.atan2(st.im[i], st.re[i]);
+    const label = '|' + i.toString(2).padStart(n,'0') + '⟩';
+    const phase = p > 1e-6 ? `<span class="ph8"><u style="transform:rotate(${-ph}rad)"></u></span>` : '';
+    const d = document.createElement('div'); d.className = 'st';
+    d.innerHTML = `<span>${label}</span><div class="bar"><i style="width:${(p*100).toFixed(1)}%"></i><b>${(p*100).toFixed(1)}%</b></div><span class="amp">${phase}${fmt(st.re[i],st.im[i])}</span>`;
+    box.appendChild(d);
+  }
+  // Bloch spheres
+  const bl = $('bl'); bl.innerHTML = ''; let ent = false;
+  for (let q=0;q<n;q++){
+    const fig = document.createElement('figure'), cv = document.createElement('canvas');
+    cv.width = cv.height = 260; fig.appendChild(cv); fig.append('q'+q); bl.appendChild(fig);
+    const v = bloch(st,q); if (Math.hypot(v.x,v.y,v.z) < 0.99) ent = true;
+    drawBloch(cv, v);
+  }
+  $('note').textContent = pend ? 'Control set. Now click the target wire in the same step (click the control again to cancel).'
+    : ent ? 'Some qubits are entangled: measuring one tells you about the others.' : '';
+}
+
+function place(c,q){
+  const col = circuit[c];
+  if (sel === 'CX'){
+    if (n < 2){ $('note').textContent = 'CNOT needs at least 2 qubits.'; return; }
+    if (col.cx && (col.cx.c===q || col.cx.t===q)){ col.cx = null; pend = null; }
+    else if (pend && pend.c===c && pend.q===q) pend = null;
+    else if (pend && pend.c===c){ col.g.fill(null); col.cx = {c:pend.q, t:q}; pend = null; }
+    else pend = {c,q};
+  } else {
+    pend = null;
+    if (col.cx){ col.cx = null; col.g[q] = sel; }
+    else col.g[q] = col.g[q] === sel ? null : sel;
+  }
+  $('shots').textContent = '';
+  render();
+}
+
+// palette
+const pal = $('pal');
+['H','X','Y','Z','S','T','CX'].forEach(g => {
+  const b = document.createElement('button');
+  b.textContent = g==='CX' ? 'CNOT' : g; if (g!=='CX') b.dataset.g = g;
+  b.title = g==='CX' ? 'Controlled-NOT: click the control wire, then the target wire' : '';
+  b.onclick = () => { sel = g; pend = null; [...pal.children].forEach(x => x.classList.toggle('on', x===b)); render(); };
+  if (g===sel) b.classList.add('on');
+  pal.appendChild(b);
+});
+
+// steppers
+$('qm').onclick = () => { setN(n-1); render(); };
+$('qp').onclick = () => { setN(n+1); render(); };
+$('sm').onclick = () => { setCols(cols-1); render(); };
+$('sp').onclick = () => { setCols(cols+1); render(); };
+
+const preset = fn => () => { reset(); fn(); $('shots').textContent=''; render(); };
+$('clear').onclick = preset(()=>{});
+$('bell').onclick = () => { if (n < 2) n = 2; preset(()=>{ circuit[0].g[0]='H'; circuit[1].cx={c:0,t:1}; })(); };
+$('sup').onclick = preset(()=>{ for (let q=0;q<n;q++) circuit[0].g[q]='H'; });
+$('hh').onclick = preset(()=>{ circuit[0].g[0]='H'; circuit[1].g[0]='H'; });
+$('meas').onclick = () => {
+  const st = simulate(), dim = 1 << n, counts = Array(dim).fill(0);
+  for (let k=0;k<100;k++){
+    let r = Math.random(), i = 0;
+    for (; i<dim-1; i++){ r -= st.re[i]**2 + st.im[i]**2; if (r < 0) break; }
+    counts[i]++;
+  }
+  $('shots').textContent = '100 shots: ' + counts.map((c,i) => c ? `|${i.toString(2).padStart(n,'0')}⟩ ×${c}` : '').filter(Boolean).join('   ');
+};
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+reset(); render();
+</script>
+</body>
+</html>
