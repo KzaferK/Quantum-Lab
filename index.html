@@ -57,6 +57,14 @@ button:focus-visible{outline:3px solid var(--bar);outline-offset:2px}
 .step button:disabled{opacity:.35;cursor:default}
 .step b{min-width:18px;text-align:center;color:var(--ink);font:500 15px "IBM Plex Mono",monospace}
 .pend .dot{background:var(--panel);border:3px solid var(--g-c)}
+#bx{width:min(100%,300px);height:auto;aspect-ratio:1;margin:0 auto}
+.exp{display:grid;grid-template-columns:minmax(0,300px) 1fr;gap:24px;align-items:center}
+@media (max-width:760px){.exp{grid-template-columns:1fr}}
+.expc label{display:block;margin-bottom:14px;font-size:14px;color:var(--mute)}
+.expc input[type=range]{width:100%;display:block;accent-color:var(--bar);margin-top:6px}
+.expc b{color:var(--ink);font:500 14px "IBM Plex Mono",monospace;margin-left:6px}
+.expc .chk{display:flex;gap:8px;align-items:center;margin:14px 0 0;color:var(--ink)}
+.ro{font:400 14px "IBM Plex Mono",monospace;margin:6px 0;overflow-wrap:anywhere}
 .bl figure{margin:0;text-align:center;font-size:13px;color:var(--mute)}
 canvas{width:130px;height:130px;display:block}
 .shots{font:400 13px "IBM Plex Mono",monospace;color:var(--mute);min-height:20px}
@@ -95,6 +103,21 @@ canvas{width:130px;height:130px;display:block}
       </div>
     </section>
   </div>
+  <section class="card" style="margin-top:16px">
+    <h2>Bloch sphere explorer</h2>
+    <p class="note" style="margin:0 0 14px">Any single-qubit state is set by two angles. θ tilts the state away from |0⟩ (a rotation about the x-axis), and φ spins it around the z-axis.</p>
+    <div class="exp">
+      <canvas id="bx" width="360" height="360"></canvas>
+      <div class="expc">
+        <label>θ <b id="thv"></b><input type="range" id="sth" min="0" max="3.14159" step="0.01" value="0"></label>
+        <label>φ <b id="phv"></b><input type="range" id="sph" min="0" max="6.28318" step="0.01" value="0"></label>
+        <div class="pal" id="expre"></div>
+        <p class="ro" id="psi"></p>
+        <p class="ro" id="pr"></p>
+        <label class="chk"><input type="checkbox" id="use"> Start q0 in this state in the circuit</label>
+      </div>
+    </div>
+  </section>
 </main>
 <script>
 const S = Math.SQRT1_2;
@@ -110,6 +133,7 @@ const G = {
 const COLOR = {X:'--g-x',Y:'--g-y',Z:'--g-z',H:'--g-h',S:'--g-s',T:'--g-t'};
 const $ = id => document.getElementById(id);
 let n = 2, cols = 6, sel = 'H', pend = null, circuit = [];
+let psi = {th:0, ph:0}, useInit = false;
 const mkCol = () => ({g:Array(n).fill(null), cx:null});
 const reset = () => { circuit = Array.from({length:cols}, mkCol); pend = null; };
 const bit = (i,q) => (i >> (n-1-q)) & 1;     // q0 is the leftmost bit of the label
@@ -130,7 +154,17 @@ function setCols(k){
 }
 
 function simulate(){
-  const dim = 1 << n, re = Array(dim).fill(0), im = Array(dim).fill(0); re[0] = 1;
+  let re = [1], im = [0];
+  for (let q=0;q<n;q++){
+    const s2 = Math.sin(psi.th/2);
+    const A = (q===0 && useInit) ? [Math.cos(psi.th/2),0,s2*Math.cos(psi.ph),s2*Math.sin(psi.ph)] : [1,0,0,0];
+    const nr = [], ni = [];
+    for (let i=0;i<re.length;i++) for (let b=0;b<2;b++){
+      nr.push(re[i]*A[2*b] - im[i]*A[2*b+1]); ni.push(re[i]*A[2*b+1] + im[i]*A[2*b]);
+    }
+    re = nr; im = ni;
+  }
+  const dim = 1 << n;
   for (const col of circuit){
     if (col.cx){
       const {c,t} = col.cx;
@@ -170,7 +204,7 @@ function bloch(st, q){
   return {x:2*cr, y:-2*ci, z:r00-r11};
 }
 
-function drawBloch(cv, v){
+function drawBloch(cv, v, axes){
   const g = cv.getContext('2d'), W = cv.width, R = W*0.38, cx = W/2, cy = W/2, a = 0.6, t = 0.4;
   const css = getComputedStyle(document.documentElement);
   const line = css.getPropertyValue('--line').trim(), ink = css.getPropertyValue('--ink').trim(), acc = css.getPropertyValue('--bar').trim();
@@ -185,6 +219,11 @@ function drawBloch(cv, v){
   for (let k=0;k<=64;k++){ const p=P(Math.cos(k/64*6.2832),Math.sin(k/64*6.2832),0); k?g.lineTo(...p):g.moveTo(...p); }
   g.stroke();
   g.beginPath(); g.moveTo(...P(0,0,1)); g.lineTo(...P(0,0,-1)); g.stroke();
+  if (axes){
+    g.beginPath(); g.moveTo(...P(-1,0,0)); g.lineTo(...P(1,0,0)); g.moveTo(...P(0,-1,0)); g.lineTo(...P(0,1,0)); g.stroke();
+    g.fillStyle = css.getPropertyValue('--mute').trim(); g.font = '600 18px "IBM Plex Mono",monospace'; g.textAlign = 'center';
+    const px = P(1.18,0,0), py = P(0,1.18,0); g.fillText('x', px[0], px[1]+6); g.fillText('y', py[0], py[1]+6);
+  }
   g.fillStyle = ink; g.font = '600 22px "IBM Plex Mono",monospace'; g.textAlign = 'center';
   g.fillText('|0⟩', cx, cy-R-8); g.fillText('|1⟩', cx, cy+R+22);
   const tip = P(v.x,v.y,v.z);
@@ -208,7 +247,7 @@ function render(){
   const ck = $('ckt'); ck.innerHTML = ''; ck.style.setProperty('--cols', cols);
   for (let q=0;q<n;q++){
     const row = document.createElement('div'); row.className = 'row';
-    row.innerHTML = `<div class="qlab">q${q} |0⟩</div>`;
+    row.innerHTML = `<div class="qlab">q${q} ${q===0 && useInit ? '|ψ⟩' : '|0⟩'}</div>`;
     circuit.forEach((col,c) => {
       const b = document.createElement('button'); b.className = 'slot';
       b.setAttribute('aria-label', `Wire q${q}, step ${c+1}`);
@@ -299,8 +338,29 @@ $('meas').onclick = () => {
   }
   $('shots').textContent = '100 shots: ' + counts.map((c,i) => c ? `|${i.toString(2).padStart(n,'0')}⟩ ×${c}` : '').filter(Boolean).join('   ');
 };
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
-reset(); render();
+function drawExp(){
+  const th = psi.th, ph = psi.ph, s = Math.sin(th);
+  drawBloch($('bx'), {x:s*Math.cos(ph), y:s*Math.sin(ph), z:Math.cos(th)}, true);
+  $('thv').textContent = th.toFixed(2); $('phv').textContent = ph.toFixed(2);
+  const a0 = Math.cos(th/2), b = Math.sin(th/2);
+  let c = fmt(b*Math.cos(ph), b*Math.sin(ph)), sign = '+';
+  if (c[0] === '-' ){ sign = '−'; c = c.slice(1); }
+  if (/.[+−]/.test(c)) c = '(' + c + ')';
+  $('psi').textContent = `|ψ⟩ = ${f(a0)}|0⟩ ${sign} ${c}|1⟩`;
+  $('pr').textContent = `P(0) = ${(a0*a0*100).toFixed(1)}%   P(1) = ${(b*b*100).toFixed(1)}%`;
+}
+function setPsi(th, ph){
+  psi = {th, ph}; $('sth').value = th; $('sph').value = ph; drawExp();
+  if (useInit){ $('shots').textContent = ''; render(); }
+}
+$('sth').oninput = e => setPsi(+e.target.value, psi.ph);
+$('sph').oninput = e => setPsi(psi.th, +e.target.value);
+$('use').onchange = e => { useInit = e.target.checked; $('shots').textContent = ''; render(); };
+[['|0⟩',0,0],['|1⟩',Math.PI,0],['|+⟩',Math.PI/2,0],['|−⟩',Math.PI/2,Math.PI],['|+i⟩',Math.PI/2,Math.PI/2],['|−i⟩',Math.PI/2,1.5*Math.PI]].forEach(([l,t,p]) => {
+  const b = document.createElement('button'); b.textContent = l; b.onclick = () => setPsi(t,p); $('expre').appendChild(b);
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { render(); drawExp(); });
+reset(); render(); drawExp();
 </script>
 </body>
 </html>
