@@ -65,6 +65,7 @@ button:focus-visible{outline:3px solid var(--bar);outline-offset:2px}
 .expc b{color:var(--ink);font:500 14px "IBM Plex Mono",monospace;margin-left:6px}
 .expc .chk{display:flex;gap:8px;align-items:center;margin:14px 0 0;color:var(--ink)}
 .ro{font:400 14px "IBM Plex Mono",monospace;margin:6px 0;overflow-wrap:anywhere}
+.act select{font:inherit;color:var(--ink);background:var(--panel);border:1.5px solid var(--line);border-radius:9px;padding:5px 8px}
 .bl figure{margin:0;text-align:center;font-size:13px;color:var(--mute)}
 canvas{width:130px;height:130px;display:block}
 .shots{font:400 13px "IBM Plex Mono",monospace;color:var(--mute);min-height:20px}
@@ -112,6 +113,7 @@ canvas{width:130px;height:130px;display:block}
         <label>θ <b id="thv"></b><input type="range" id="sth" min="0" max="3.14159" step="0.01" value="0"></label>
         <label>φ <b id="phv"></b><input type="range" id="sph" min="0" max="6.28318" step="0.01" value="0"></label>
         <div class="pal" id="expre"></div>
+        <div class="act" style="margin:0 0 12px"><button id="view">Show circuit state</button><select id="vq" hidden aria-label="Qubit to show"></select></div>
         <p class="ro" id="psi"></p>
         <p class="ro" id="pr"></p>
         <label class="chk"><input type="checkbox" id="use"> Start q0 in this state in the circuit</label>
@@ -133,7 +135,7 @@ const G = {
 const COLOR = {X:'--g-x',Y:'--g-y',Z:'--g-z',H:'--g-h',S:'--g-s',T:'--g-t'};
 const $ = id => document.getElementById(id);
 let n = 2, cols = 6, sel = 'H', pend = null, circuit = [];
-let psi = {th:0, ph:0}, useInit = false;
+let psi = {th:0, ph:0}, useInit = false, view = false, vq = 0;
 const mkCol = () => ({g:Array(n).fill(null), cx:null});
 const reset = () => { circuit = Array.from({length:cols}, mkCol); pend = null; };
 const bit = (i,q) => (i >> (n-1-q)) & 1;     // q0 is the leftmost bit of the label
@@ -239,6 +241,7 @@ function fmt(r,i){
 }
 
 function render(){
+  if (view) drawExp();
   // steppers
   $('qv').textContent = n; $('sv').textContent = cols;
   $('qm').disabled = n <= 1; $('qp').disabled = n >= 4;
@@ -338,7 +341,31 @@ $('meas').onclick = () => {
   }
   $('shots').textContent = '100 shots: ' + counts.map((c,i) => c ? `|${i.toString(2).padStart(n,'0')}⟩ ×${c}` : '').filter(Boolean).join('   ');
 };
+function drawView(){
+  if (vq >= n) vq = 0;
+  const dd = $('vq');
+  if (dd.options.length !== n){ dd.innerHTML = ''; for (let q=0;q<n;q++) dd.add(new Option('q'+q, q)); }
+  dd.value = vq;
+  const v = bloch(simulate(), vq), len = Math.hypot(v.x,v.y,v.z);
+  drawBloch($('bx'), v, true);
+  const th = Math.acos(Math.max(-1, Math.min(1, v.z/(len||1)))), ph = (Math.atan2(v.y,v.x) + 2*Math.PI) % (2*Math.PI);
+  $('thv').textContent = th.toFixed(2); $('phv').textContent = ph.toFixed(2);
+  $('sth').value = th; $('sph').value = ph;
+  $('psi').textContent = `Bloch vector of q${vq}: (${f(v.x)}, ${f(v.y)}, ${f(v.z)})`;
+  $('pr').textContent = len > 0.99
+    ? `P(0) = ${((1+v.z)/2*100).toFixed(1)}%   P(1) = ${((1-v.z)/2*100).toFixed(1)}%`
+    : `Entangled: the vector has length ${f(len)}, so q${vq} has no single pure state.`;
+}
+function setView(on){
+  view = on; $('view').textContent = on ? 'Back to sliders' : 'Show circuit state';
+  $('vq').hidden = !on; $('sth').disabled = $('sph').disabled = on;
+  $('sth').value = psi.th; $('sph').value = psi.ph;
+  drawExp();
+}
+$('view').onclick = () => setView(!view);
+$('vq').onchange = e => { vq = +e.target.value; drawExp(); };
 function drawExp(){
+  if (view){ drawView(); return; }
   const th = psi.th, ph = psi.ph, s = Math.sin(th);
   drawBloch($('bx'), {x:s*Math.cos(ph), y:s*Math.sin(ph), z:Math.cos(th)}, true);
   $('thv').textContent = th.toFixed(2); $('phv').textContent = ph.toFixed(2);
@@ -350,6 +377,7 @@ function drawExp(){
   $('pr').textContent = `P(0) = ${(a0*a0*100).toFixed(1)}%   P(1) = ${(b*b*100).toFixed(1)}%`;
 }
 function setPsi(th, ph){
+  if (view) setView(false);
   psi = {th, ph}; $('sth').value = th; $('sph').value = ph; drawExp();
   if (useInit){ $('shots').textContent = ''; render(); }
 }
