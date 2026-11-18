@@ -66,6 +66,15 @@ button:focus-visible{outline:3px solid var(--bar);outline-offset:2px}
 .expc .chk{display:flex;gap:8px;align-items:center;margin:14px 0 0;color:var(--ink)}
 .ro{font:400 14px "IBM Plex Mono",monospace;margin:6px 0;overflow-wrap:anywhere}
 .act select{font:inherit;color:var(--ink);background:var(--panel);border:1.5px solid var(--line);border-radius:9px;padding:5px 8px}
+.act button.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--ink) inset}
+.mrow{display:flex;align-items:center;gap:12px;overflow-x:auto;padding:6px 2px 10px}
+.mrow .op{font:500 20px "IBM Plex Mono",monospace;color:var(--mute);flex:none}
+.mrow figure{margin:0;text-align:center;flex:none}
+.mrow figcaption{font-size:12px;color:var(--mute);margin-bottom:4px}
+.mcap{font-size:14px;color:var(--mute);margin:14px 0 0}
+.mx{border-collapse:separate;border-spacing:0;border-left:2px solid var(--ink);border-right:2px solid var(--ink);border-radius:6px;padding:2px 4px;margin:0 auto}
+.mx td{padding:2px 8px;font:400 12px "IBM Plex Mono",monospace;text-align:right;white-space:nowrap}
+.mx td.z{color:var(--mute);opacity:.55}
 .bl figure{margin:0;text-align:center;font-size:13px;color:var(--mute)}
 canvas{width:130px;height:130px;display:block}
 .shots{font:400 13px "IBM Plex Mono",monospace;color:var(--mute);min-height:20px}
@@ -95,7 +104,9 @@ canvas{width:130px;height:130px;display:block}
     <section>
       <div class="card" style="margin-bottom:16px">
         <h2>Probabilities and amplitudes</h2>
+        <div class="act" style="margin:0 0 8px"><button id="bzb" class="on">Z basis: |0⟩, |1⟩</button><button id="bxb">X basis: |+⟩, |−⟩</button></div>
         <div id="states"></div>
+        <p class="note" id="bnote" style="margin:8px 0 0"></p>
       </div>
       <div class="card">
         <h2>Bloch spheres</h2>
@@ -120,6 +131,12 @@ canvas{width:130px;height:130px;display:block}
       </div>
     </div>
   </section>
+  <section class="card" style="margin-top:16px">
+    <h2>Matrix view</h2>
+    <p class="note" style="margin:0">Every step is a matrix that multiplies the state vector. Zeros are dimmed, and i is the imaginary unit.</p>
+    <div class="act" style="margin:12px 0 0"><button id="exb">Show exact values</button></div>
+    <div id="mat"></div>
+  </section>
 </main>
 <script>
 const S = Math.SQRT1_2;
@@ -135,7 +152,7 @@ const G = {
 const COLOR = {X:'--g-x',Y:'--g-y',Z:'--g-z',H:'--g-h',S:'--g-s',T:'--g-t'};
 const $ = id => document.getElementById(id);
 let n = 2, cols = 6, sel = 'H', pend = null, circuit = [];
-let psi = {th:0, ph:0}, useInit = false, view = false, vq = 0;
+let psi = {th:0, ph:0}, useInit = false, view = false, vq = 0, basis = 'Z';
 const mkCol = () => ({g:Array(n).fill(null), cx:null});
 const reset = () => { circuit = Array.from({length:cols}, mkCol); pend = null; };
 const bit = (i,q) => (i >> (n-1-q)) & 1;     // q0 is the leftmost bit of the label
@@ -155,7 +172,7 @@ function setCols(k){
   cols = k;
 }
 
-function simulate(){
+function simulate(list = circuit, start = null){
   let re = [1], im = [0];
   for (let q=0;q<n;q++){
     const s2 = Math.sin(psi.th/2);
@@ -166,8 +183,9 @@ function simulate(){
     }
     re = nr; im = ni;
   }
+  if (start){ re = start.re.slice(); im = start.im.slice(); }
   const dim = 1 << n;
-  for (const col of circuit){
+  for (const col of list){
     if (col.cx){
       const {c,t} = col.cx;
       for (let i=0;i<dim;i++){
@@ -224,7 +242,7 @@ function drawBloch(cv, v, axes){
   if (axes){
     g.beginPath(); g.moveTo(...P(-1,0,0)); g.lineTo(...P(1,0,0)); g.moveTo(...P(0,-1,0)); g.lineTo(...P(0,1,0)); g.stroke();
     g.fillStyle = css.getPropertyValue('--mute').trim(); g.font = '600 18px "IBM Plex Mono",monospace'; g.textAlign = 'center';
-    const px = P(1.18,0,0), py = P(0,1.18,0); g.fillText('x', px[0], px[1]+6); g.fillText('y', py[0], py[1]+6);
+    [['|+⟩',1.25,0,0],['|−⟩',-1.25,0,0],['|+i⟩',0,1.25,0],['|−i⟩',0,-1.25,0]].forEach(([t,x,y,z]) => { const p = P(x,y,z); g.fillText(t, p[0], p[1]+6); });
   }
   g.fillStyle = ink; g.font = '600 22px "IBM Plex Mono",monospace'; g.textAlign = 'center';
   g.fillText('|0⟩', cx, cy-R-8); g.fillText('|1⟩', cx, cy+R+22);
@@ -242,6 +260,7 @@ function fmt(r,i){
 
 function render(){
   if (view) drawExp();
+  renderMat();
   // steppers
   $('qv').textContent = n; $('sv').textContent = cols;
   $('qm').disabled = n <= 1; $('qp').disabled = n >= 4;
@@ -271,14 +290,15 @@ function render(){
     ck.appendChild(row);
   }
   // state readout
-  const st = simulate(), dim = 1 << n, box = $('states'); box.innerHTML = '';
+  const st = simulate(), dim = 1 << n, box = $('states'), sv = basis === 'X' ? toX(st) : st; box.innerHTML = '';
   box.style.setProperty('--lw', (n*9+22)+'px');
   for (let i=0;i<dim;i++){
-    const p = st.re[i]**2 + st.im[i]**2, ph = Math.atan2(st.im[i], st.re[i]);
-    const label = '|' + i.toString(2).padStart(n,'0') + '⟩';
+    const p = sv.re[i]**2 + sv.im[i]**2, ph = Math.atan2(sv.im[i], sv.re[i]);
+    const bs = i.toString(2).padStart(n,'0');
+    const label = '|' + (basis === 'X' ? bs.replace(/0/g,'+').replace(/1/g,'−') : bs) + '⟩';
     const phase = p > 1e-6 ? `<span class="ph8"><u style="transform:rotate(${-ph}rad)"></u></span>` : '';
     const d = document.createElement('div'); d.className = 'st';
-    d.innerHTML = `<span>${label}</span><div class="bar"><i style="width:${(p*100).toFixed(1)}%"></i><b>${(p*100).toFixed(1)}%</b></div><span class="amp">${phase}${fmt(st.re[i],st.im[i])}</span>`;
+    d.innerHTML = `<span>${label}</span><div class="bar"><i style="width:${(p*100).toFixed(1)}%"></i><b>${(p*100).toFixed(1)}%</b></div><span class="amp">${phase}${fmt(sv.re[i],sv.im[i])}</span>`;
     box.appendChild(d);
   }
   // Bloch spheres
@@ -341,6 +361,88 @@ $('meas').onclick = () => {
   }
   $('shots').textContent = '100 shots: ' + counts.map((c,i) => c ? `|${i.toString(2).padStart(n,'0')}⟩ ×${c}` : '').filter(Boolean).join('   ');
 };
+function toX(st){   // amplitudes in the |+>,|-> basis: apply H on every qubit
+  const dim = st.re.length, s = 1/Math.sqrt(dim), re = [], im = [];
+  for (let k=0;k<dim;k++){
+    let a = 0, b = 0;
+    for (let j=0;j<dim;j++){
+      let x = j & k, par = 0; while (x){ par ^= x & 1; x >>= 1; }
+      const sg = par ? -1 : 1; a += sg*st.re[j]; b += sg*st.im[j];
+    }
+    re.push(a*s); im.push(b*s);
+  }
+  return {re, im};
+}
+function setBasis(b){
+  basis = b; $('bzb').classList.toggle('on', b === 'Z'); $('bxb').classList.toggle('on', b === 'X');
+  $('bnote').textContent = b === 'X' ? '|+⟩ = (|0⟩ + |1⟩)/√2 and |−⟩ = (|0⟩ − |1⟩)/√2. Bars show the chance of measuring each ± combination, and each qubit is read in that basis.' : '';
+  render();
+}
+$('bzb').onclick = () => setBasis('Z'); $('bxb').onclick = () => setBasis('X');
+let exact = false;
+function frac(v){
+  const a = Math.abs(v);
+  for (const root of [false, true]){
+    const x = root ? a*Math.SQRT2 : a;
+    for (const d of [1,2,4,8]){
+      const m = Math.round(x*d);
+      if (m > 0 && m <= 8 && Math.abs(x*d - m) < 1e-4) return {m, d, root};
+    }
+  }
+  return null;
+}
+const fs = ({m,d,root}) => root ? m + '/' + (d === 1 ? '√2' : '(' + d + '√2)') : (d === 1 ? '' + m : m + '/' + d);
+function fmtExact(r,i){
+  const zr = Math.abs(r) < 5e-4, zi = Math.abs(i) < 5e-4;
+  if (zr && zi) return '0';
+  const fr = zr ? null : frac(r), fi = zi ? null : frac(i);
+  if ((!zr && !fr) || (!zi && !fi)) return fmt(r,i);
+  if (zi) return (r < 0 ? '−' : '') + fs(fr);
+  if (zr) return (i < 0 ? '−' : '') + 'i' + fs(fi).slice(1);
+  if (fr.m === 1 && fi.m === 1 && fr.d === fi.d && fr.root === fi.root)
+    return '(' + (r < 0 ? '−1' : '1') + (i < 0 ? ' − ' : ' + ') + 'i)' + fs(fr).slice(1);
+  return fmt(r,i);
+}
+const fmtM = (r,i) => exact ? fmtExact(r,i) : fmt(r,i);
+$('exb').onclick = () => { exact = !exact; $('exb').textContent = exact ? 'Show decimals' : 'Show exact values'; renderMat(); };
+const cnotM = {re:[[1,0,0,0],[0,1,0,0],[0,0,0,1],[0,0,1,0]], im:Array.from({length:4}, () => [0,0,0,0])};
+function gateM(g){ const m = G[g]; return {re:[[m[0][0],m[1][0]],[m[2][0],m[3][0]]], im:[[m[0][1],m[1][1]],[m[2][1],m[3][1]]]}; }
+const zc = (r,i) => Math.abs(r) < 5e-4 && Math.abs(i) < 5e-4 ? " class='z'" : '';
+const matHTML = M => "<table class='mx'>" + M.re.map((row,i) => '<tr>' + row.map((r,j) => `<td${zc(r,M.im[i][j])}>${fmtM(r,M.im[i][j])}</td>`).join('') + '</tr>').join('') + '</table>';
+const vecHTML = st => matHTML({re:st.re.map(r => [r]), im:st.im.map(x => [x])});
+function colMatrix(list){
+  const dim = 1 << n, M = {re:[], im:[]};
+  for (let i=0;i<dim;i++){ M.re.push(Array(dim).fill(0)); M.im.push(Array(dim).fill(0)); }
+  for (let j=0;j<dim;j++){
+    const e = Array(dim).fill(0); e[j] = 1;
+    const out = simulate(list, {re:e, im:Array(dim).fill(0)});
+    for (let i=0;i<dim;i++){ M.re[i][j] = out.re[i]; M.im[i][j] = out.im[i]; }
+  }
+  return M;
+}
+function renderMat(){
+  const box = $('mat'), dim = 1 << n, big = n > 3;
+  const steps = circuit.map((col,c) => ({col,c})).filter(({col}) => col.cx || col.g.some(Boolean));
+  if (!steps.length){ box.innerHTML = "<p class='mcap'>Place a gate to see its matrix.</p>"; return; }
+  const name = col => col.cx ? `CNOT q${col.cx.c} → q${col.cx.t}` : col.g.map(g => g || 'I').join(' ⊗ ');
+  const fig = (cap, html) => `<figure><figcaption>${cap}</figcaption>${html}</figure>`;
+  const labels = [...Array(Math.min(dim,8)).keys()].map(i => '|' + i.toString(2).padStart(n,'0') + '⟩').join(', ') + (dim > 8 ? ', …' : '');
+  const used = new Set(); circuit.forEach(col => col.g.forEach(g => g && used.add(g)));
+  let h = `<p class='mcap'>State vector rows are ordered ${labels}. Gates on several qubits combine with ⊗ (I means no gate on that wire).</p>`;
+  h += "<p class='mcap'>Gate matrices</p><div class='mrow'>" + [...used].map(g => fig(g, matHTML(gateM(g)))).join('') + (circuit.some(c => c.cx) ? fig('CNOT (control = left qubit, target = right)', matHTML(cnotM)) : '') + '</div>';
+  let prev = simulate([]);
+  h += `<p class='mcap'>Start</p><div class='mrow'>${fig('initial state', vecHTML(prev))}</div>`;
+  steps.forEach(({col,c}) => {
+    const next = simulate(circuit.slice(0, c+1));
+    h += `<p class='mcap'>Step ${c+1}: ${name(col)}</p><div class='mrow'>` + (big ? '' : fig('step matrix', matHTML(colMatrix([col]))) + "<span class='op'>×</span>") + fig('before', vecHTML(prev)) + "<span class='op'>=</span>" + fig('after', vecHTML(next)) + '</div>';
+    prev = next;
+  });
+  if (!big && steps.length > 1){
+    h += "<p class='mcap'>Whole circuit</p><div class='mrow'>" + fig('all steps multiplied', matHTML(colMatrix(circuit))) + "<span class='op'>×</span>" + fig('initial state', vecHTML(simulate([]))) + "<span class='op'>=</span>" + fig('final state', vecHTML(prev)) + '</div>';
+  }
+  if (big) h += "<p class='mcap'>Four qubits would need 16×16 step matrices, so only gate matrices and state vectors are shown. Use 3 qubits or fewer to see the full step matrices.</p>";
+  box.innerHTML = h;
+}
 function drawView(){
   if (vq >= n) vq = 0;
   const dd = $('vq');
